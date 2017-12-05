@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/etc/python3
 
 import math
 import sys
@@ -6,7 +6,7 @@ import support
 import data
 
 
-# Function to get input impedance from electrical length and width (polynomial approximation)
+# Get input impedance from electrical length and width (polynomial approximation)
 def get_G_rad(L_norm, W_norm):
     c_rows = len(data.G_rad_coefficients)
     c_cols = len(data.G_rad_coefficients[0])
@@ -30,7 +30,7 @@ def get_G_rad(L_norm, W_norm):
     return G_rad
 
 
-# Function to get coefficients for Newton-Raphson approximation
+# Get coefficients for Newton-Raphson approximation
 def get_coeff(L_norm, W_norm):
     C = data.G_rad_coefficients
     c_rows = len(C)
@@ -46,7 +46,7 @@ def get_coeff(L_norm, W_norm):
     return C_l, C_w
 
 
-# Function to find, given the electrical length, the electrical width that guarantees the wanted input impedance
+# Find electrical width given electrical length and wanted impedance
 def get_W_norm(L_norm, W_norm, Z_target, C_w, convergence_speed):
     global G_rad
     global Z_in
@@ -64,85 +64,113 @@ def get_W_norm(L_norm, W_norm, Z_target, C_w, convergence_speed):
     return W_norm
 
 
+# Get effective permittivity given patch cross-section
 def get_eps_eff(W, h, eps_r):
     eps_eff = (eps_r+1)/2.0 + (eps_r-1)/2.0 / math.sqrt(1 + 10*h/W)
     return eps_eff
 
 
+# Get effective length given width, height and effective permittivity
 def get_effective_length(W, h, eps_eff):
     delta_L = h*0.412 * (eps_eff+0.3)/(eps_eff-0.258) * (W/h+0.264)/(W/h+0.8)
     L = 1.0/2 * lmbd_0/math.sqrt(eps_eff) - 2*delta_L
     return L
 
-# Needed constants
-c = 299792458  # about 3*10**8 m/s
+if __name__ == '__main__':
+    # Needed constants
+    c = data.c
 
-# Design parameters and options
-f_0, Z_target, h, eps_r, convergence_speed = support.get_options(sys.argv)
-names = ("Center frequency", "Maximum input impedance", "Substrate relative permittivity", "Substrate height")
-variables = (f_0, Z_target, eps_r, h)
-units = ("Hz", "Ohm", "", "m")
-print("Data recap:")
-for i in range(4):
-    print("\t" + names[i] + ": " + str(variables[i]) + " " + units[i])
-print()
+    # Design parameters and options
+    f_0, Z_target, h, eps_r, convergence_speed = support.get_options(sys.argv)
+    names = ("Center frequency", "Maximum input impedance", "Substrate relative permittivity", "Substrate height")
+    variables = (f_0, Z_target, eps_r, h)
+    units = ("Hz", "Ohm", "", "m")
+    print("Data recap:")
+    for i in range(4):
+        print("\t" + names[i] + ": " + str(variables[i]) + " " + units[i])
+    print()
 
-# Get free-space wavelength
-print("Calculating free-space wavelength...")
-lmbd_0 = 1.0*c/f_0
-print("\tFree-space wavelength: " + str(lmbd_0) + " m\n")
+    # Get free-space wavelength
+    print("Calculating free-space wavelength...")
+    lmbd_0 = 1.0*c/f_0
+    print("\tFree-space wavelength: " + str(lmbd_0) + " m\n")
 
-# Guess patch length
-print("Calculating tentative patch length...")
-L = 1.0/2*lmbd_0/math.sqrt(eps_r)
-L_norm = L/lmbd_0  # Electrical length
-if L_norm < 0.2 or L_norm > 0.5:  # Polynomial approximation for G_rad not valid
-    print("\tWARNING: electrical length of patch is " + str(L_norm) +
-          ", approximations are valid in range 0.2 to 0.5.")
-    print("\tResults might be inaccurate")
-print("\tTentative patch length: " + str(L) + " m\n")
+    # Guess patch length
+    print("Calculating tentative patch length...")
+    L = 1.0/2*lmbd_0/math.sqrt(eps_r)
+    L_norm = L/lmbd_0  # Electrical length
+    if L_norm < 0.2 or L_norm > 0.5:  # Polynomial approximation for G_rad not valid
+        print("\tWARNING: electrical length of patch is " + str(L_norm) +
+              ", approximations are valid in range 0.2 to 0.5.")
+        print("\tResults might be inaccurate")
+    print("\tTentative patch length: " + str(L) + " m\n")
 
-# Guess patch width
-print("Calculating tentative patch width...")
-W = L  # In absence of better ideas, just start from a square patch
-W_norm = L_norm
-if W_norm < 0.35:  # If we are outside of range of polynomial approximation for G_rad
-    W_norm = 0.35
-    W = W_norm * lmbd_0
-if W_norm > 1:  # If we are outside of range of polynomial approximation for G_rad
-    W_norm = 1
-    W = lmbd_0
-print("\tTentative patch width: " + str(W) + " m\n")
+    # Guess patch width
+    print("Calculating tentative patch width...")
+    W = L  # In absence of better ideas, just start from a square patch
+    W_norm = L_norm
+    if W_norm < 0.35:  # If we are outside of range of polynomial approximation for G_rad
+        W_norm = 0.35
+        W = W_norm * lmbd_0
+    if W_norm > 1:  # If we are outside of range of polynomial approximation for G_rad
+        W_norm = 1
+        W = lmbd_0
+    print("\tTentative patch width: " + str(W) + " m\n")
 
-# Get approximate input impedance
-print("Calculating input impedance...")
-G_rad = get_G_rad(L_norm, W_norm)
-Z_in = 1/G_rad
-print("\tInput impedance: " + str(Z_in) + " Ohm\n")
+    # Get approximate input impedance
+    print("Calculating input impedance...")
+    G_rad = get_G_rad(L_norm, W_norm)
+    Z_in = 1/G_rad
+    print("\tInput impedance: " + str(Z_in) + " Ohm\n")
 
-# Results likely to be completely off from what we want, modify W to get better Z_in
-print("Iterating to get better input impedance...")
-C_l, C_w = get_coeff(L_norm, W_norm)
-W_norm = get_W_norm(L_norm, W_norm, Z_target, C_w, convergence_speed)
-W = W_norm*lmbd_0
-G_rad = get_G_rad(L_norm, W_norm)
-Z_in = 1.0/G_rad
-print("\tPatch width: " + str(W) + " m")
-print("\tInput impedance: " + str(Z_in) + " Ohm\n")
+    # Results likely to be completely off from what we want, modify W to get better Z_in
+    print("Iterating to get better input impedance...")
+    C_l, C_w = get_coeff(L_norm, W_norm)
+    W_norm = get_W_norm(L_norm, W_norm, Z_target, C_w, convergence_speed)
+    W = W_norm*lmbd_0
+    G_rad = get_G_rad(L_norm, W_norm)
+    Z_in = 1.0/G_rad
+    print("\tPatch width: " + str(W) + " m")
+    print("\tInput impedance: " + str(Z_in) + " Ohm\n")
 
-# Get effective permittivity
-print("Calculating effective permittivity")
-eps_eff = get_eps_eff(W, h, eps_r)
-print("\tEffective permittivity: " + str(eps_eff) + "\n")
+    # Get effective permittivity
+    print("Calculating effective permittivity...")
+    eps_eff = get_eps_eff(W, h, eps_r)
+    print("\tEffective permittivity: " + str(eps_eff) + "\n")
 
-# Get effective length
-print("Calculating effective patch length")
-L = get_effective_length(W, h, eps_eff)
-print("Effective patch length: " + str(L) + " m\n")
+    # Get effective length
+    print("Calculating effective patch length...")
+    L = get_effective_length(W, h, eps_eff)
+    L_norm = L/lmbd_0
+    print("\tEffective patch length: " + str(L) + " m\n")
 
-# Design results
-print("\n\nDesign results:")
-print("\tPatch length: " + str(L) + " m")
-print("\tPatch width: " + str(W) + " m")
-print("\tSubstrate height: " + str(h) + " m")
-print("\tSubstrate permittivity: " + str(eps_r) + "\n")
+    # Iterate a bit design starting from effective length
+    print("Optimizing...")
+    for i in range(50):
+        L_old = L
+        W_old = W
+        C_l, C_w = get_coeff(L_norm, W_norm)
+        W_norm = get_W_norm(L_norm, W_norm, Z_target, C_w, convergence_speed)
+        W = W_norm * lmbd_0
+        G_rad = get_G_rad(L_norm, W_norm)
+        Z_in = 1.0 / G_rad
+        eps_eff = get_eps_eff(W, h, eps_r)
+        L = get_effective_length(W, h, eps_eff)
+        L_norm = L/lmbd_0
+        if L-L_old < 0.000001 and W-W_old < 0.000001:  # 1 um tolerance
+            break
+
+    # Get radiation resistance for final design
+    G_rad = get_G_rad(L_norm, W_norm)
+    Z_in = 1.0 / G_rad
+
+    # Design results
+    print("\n\nDesign results:")
+    print("\tPatch length: " + str(L) + " m")
+    print("\tPatch width: " + str(W) + " m")
+    print("\tSubstrate height: " + str(h) + " m")
+    print("\tSubstrate permittivity: " + str(eps_r))
+    print("\tRadiation resistance: " + str(Z_in) + " Ohm\n")
+
+    # Clean exit
+    exit(0)
